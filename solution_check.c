@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <omp.h>
+//#include <mpi.h>
 
 #include "check.h"
 #include "util.h"
@@ -13,6 +15,7 @@
   #endif
 #endif
 
+
 int solution_check(solution_t* const s, problem_t* const p) {
   /* OK: errors = 0. */
   int errors = 0;
@@ -21,6 +24,7 @@ int solution_check(solution_t* const s, problem_t* const p) {
   const int nb_streets = p->S;
   const int nb_inter_sol = s->A;
 
+	// #p Boucle à paralléliser, reduction sur errors,
   for(int i=0; i<nb_inter_sol; i++)
   {
     // vérifie la solution pour l'intersection num i : s->schedule[i]
@@ -28,6 +32,8 @@ int solution_check(solution_t* const s, problem_t* const p) {
     {
       fprintf(stderr, "intersection has no light (%d)\n", i);
     }
+
+		// #p boucle à paralléliser
     for(int feu=0; feu<s->schedule[i].nb; feu++)
     {
       // s->schedule[i].t[feu] .rue et .duree sont valides
@@ -39,6 +45,8 @@ int solution_check(solution_t* const s, problem_t* const p) {
         errors++;
       }
       int rid;
+
+			// #p on ne peut pas paralléliser cette boucle à cause du break. on a besoin d'une condition d'arrêt à moins de modifier le code
       // vérifie que cette rue (rue) arrive bien à cette intersection (i)
       for(rid=0; rid<nb_streets; rid++)
       {
@@ -89,6 +97,7 @@ void simulation_init(const problem_t* const p) {
   memset(car_state, 0, NB_CARS_MAX * sizeof(car_state_t));
   memset(street_state, 0, NB_STREETS_MAX * sizeof(street_state_t));
 
+	// #p boucle d'initialisation, ne semble pas intéressante à paralléliser
   for (int i = 0; i < p->V; i++) {
     car_state[i].street = p->c[i].streets[0];
     car_state[i].distance = 0;
@@ -107,6 +116,7 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
   int tick = 0;
   int no_green_light = 1;
 
+	// #p boucle à paralléliser avec une réduction sur cycle
   // Find the light cycle total time
   for (int l = 0; l < s->schedule[i].nb; l++) {
     cycle += s->schedule[i].t[l].duree;
@@ -117,6 +127,7 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
 
   //printf("Inter %d, cycle %d, tick %d, T %d\n", i, cycle, tick, T);
 
+	// #p problème de dépendence sur tick, modifier le code pour l'initialiser à nouveau dans chaque tour ?
   // Set the light state
   for (int l = 0; l < s->schedule[i].nb; l++) {
     // Remove duration, if we get below zero, this light is green and others are red
@@ -124,7 +135,9 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
     //printf("light %d, tick %d, duree %d\n", l, tick,  s->schedule[i].t[l].duree);
     if (tick < 0) {
       street_state[s->schedule[i].t[l].rue].green = 1;
+			// #p si paralléliser alors atomic sur no_green_light
       no_green_light = 0;
+			// #p pas la peine
       for (int next = l + 1; next < s->schedule[i].nb; next++) {
         street_state[s->schedule[i].t[next].rue].green = 0;
       }
@@ -170,6 +183,8 @@ int simulation_update_car(const problem_t* const p, int c, int T) {
     car_state[c].arrived = 1;
     // Remove the car immediately from the street
     street_state[car_state[c].street].nb_cars--;
+
+		// #p boucle à paralléliser
     // If another car is in that street and was there before that car, dequeue it
     for (int i = 0; i < p->V; i++) {
       if ((car_state[c].street == car_state[i].street) &&
@@ -204,11 +219,15 @@ void simulation_print_state(const problem_t* const p, int T) {
   }
 }
 
+
 void simulation_dequeue(const problem_t* const p) {
+
+	// #p boucle à paralléliser
   for (int street = 0; street < p->S; street++) {
     // If there is a street to dequeue
     if (street_state[street].out == 1) {
       // If a car is in that street, dequeue it
+			// #p boucle peut être paralléliser, mais semble peu intéréssante
       for (int c = 0; c < p->V; c++) {
         if (car_state[c].street == street) {
           car_state[c].position--;
@@ -234,6 +253,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
   simulation_init(p);
 
   // For each time step
+	// #p boucle à paralléliser #MPI,  MPI_ALLREDUCE sur score 
   for (int T = 0; T < p->D; T++) {
     #ifdef DEBUG_SCORE
     printf("Score: %d\n", score);
@@ -241,6 +261,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
     simulation_print_state(p, T);
     #endif
 
+		// #p boucle à paralléliser #openmp
     // Update light state for each intersection
     for (int i = 0; i < s->A; i++) {
       simulation_update_intersection_lights(s, i, T);
@@ -251,6 +272,8 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
     simulation_print_state(p, T);
     #endif
 
+		// #p no barrier
+		// #p boucle à paralléliser avec reduction sur score #openmp
     // Update car state
     for (int c = 0; c < p->V; c++) {
       score += simulation_update_car(p, c, T);
@@ -261,6 +284,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
     simulation_print_state(p, T);
     #endif
 
+		// #p paralléliser la fonction
     simulation_dequeue(p);
 
     #ifdef DEBUG_SCORE
@@ -290,8 +314,10 @@ int tab_car[NB_CARS_MAX][2];
 int solution_score(solution_t* s, const problem_t* const p) {
   int score = 0;
 
+	// #p fonction à paralléliser
   score = simulation_run(s, p);
 
+// #p code non executé
 #if 0
   printf("Score = %d\n", score);
 

@@ -39,7 +39,7 @@ typedef struct rue
 typedef struct car
 {
   int P; // nb of streets
-  int streets[NB_STREETS_MAX];
+  int streets[NB_STREETS_MAX]; // rues parcourues
 } car_t;
 
 typedef struct problem
@@ -54,8 +54,8 @@ typedef struct problem
 
   rue_t r[NB_STREETS_MAX]; // les rues (stockés en ordre arbitraire)
 
-  car_t c[NB_CARS_MAX];
-  street_table* table;
+  car_t c[NB_CARS_MAX]; // les chemins des voitures
+  street_table* table; 
 }
 problem_t;
 

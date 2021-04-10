@@ -23,11 +23,13 @@ typedef struct solution
 }
 solution_t;
 
+//not used
 void   solution_init(solution_t*, problem_t* p);
+
 int    solution_read(char*, solution_t*, problem_t* p);
 void   solution_write(FILE*, solution_t*, problem_t*);
 int    solution_check(solution_t*, problem_t*);
-int solution_score(solution_t*, const problem_t*);
+int 	 solution_score(solution_t*, const problem_t*);
 
 
 /* ces trois fonctions se trouvent dans :
