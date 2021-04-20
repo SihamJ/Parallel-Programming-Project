@@ -316,7 +316,6 @@ void modifie_sched(sched_t *s, const int only_add)
 void refine(solution_t* s, problem_t* p)
 {
   // part d'une solution existante et la rafine
-
   // version 1 :
   // une chance sur deux de réordonner aléatoirement les feux d'une interstion sur 10, sans aucune autre modif :
   if(rand()%2)

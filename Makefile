@@ -3,7 +3,7 @@ CC ?= gcc
 CPPFLAGS += -I/usr/X11/include
 
 # CFLAGS
-CFLAGS ?= -g -O3 -march=native -flto
+CFLAGS ?= -g -O3 -march=native -flto -fopenmp
 override CFLAGS += -std=gnu11 -pedantic
 override CFLAGS += -Wall -Wextra
 override CFLAGS += -Wformat=2 -Winit-self -Wswitch-default -Wunused-parameter \
