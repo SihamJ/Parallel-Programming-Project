@@ -278,14 +278,15 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 		int remaining_units = p->D % size;
 		int total_processes = size;
 
+		// Si nombre de processus supérieurs au nombre d'unités de temps
 		if(units_per_process == 0){
 			units_per_process++;
 			remaining_units = 0;
 			total_processes = total_units;
 		}
 
-		// variables utiles dans le cas où le nombre de processus ne divise pas le nombre d'unités de temps, elles servent à partager les unités
-		// restantes équitablement entre les processus.
+		// variables utiles dans le cas où le nombre de processus ne divise pas le nombre d'unités de temps, elles servent à partager les unités -->
+		// --> restantes équitablement entre les processus.
 		int bonus = rang < remaining_units;
 		int bonus_prev = 0;
 
@@ -293,82 +294,44 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 			for (int j = 0; j < remaining_units && j < rang; j++)
 				bonus_prev++;
 
-	// For each time step
-	for (int T = rang*units_per_process + bonus_prev; T < total_units; T++) {
-
-			#ifdef DEBUG_SCORE
-						printf("Score: %d\n", score);
-				printf("- 1 Init:\n");
-				simulation_print_state(p, T);
-			#endif
-
-			// Attend de recevoir le résultat de street_state de la part du processus du rang qui le précède
-			if(rang != 0  &&  T == rang*units_per_process + bonus_prev ){
-				MPI_Status status;
-			//	fprintf(stderr,"process %d receiving 0 from %d AND T = %d\n",rang,rang-1, T);
-				MPI_Recv(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang - 1, 0, MPI_COMM_WORLD, &status);
-			}
-			// Update light state for each intersection et l'envoie au processus de rang suivant si c'est son dernier tour de boucle
+		for(int T = rang; T < rang + total_processes*(units_per_process+bonus); T += total_processes ){
 
 			#pragma omp parallel for
-				for (int i = 0; i < s->A; i++)
+			for (int i = 0; i < s->A; i++)
 					simulation_update_intersection_lights(s, i, T);
 
-			if( rang != total_processes-1  &&  T == (rang+1)*units_per_process - 1 + bonus + bonus_prev){
-				//fprintf(stderr,"process %d sending 0 AND T = %d\n",rang,T);
-				MPI_Ssend(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang + 1, 0, MPI_COMM_WORLD );
+			// recv prev info car & lights, & update lights
+			street_state_t temp[NB_STREETS_MAX];
+
+			if( total_processes > 1 && T != 0){
+				MPI_Status status;
+				MPI_Recv(&temp, 4*NB_STREETS_MAX, MPI_INT, (rang - 1)%total_processes, 0, MPI_COMM_WORLD, &status);
+				MPI_Recv(&car_state, 5*NB_CARS_MAX, MPI_INT, (rang - 1)%total_processes, 0, MPI_COMM_WORLD, &status);
+
+				#pragma omp parallel for
+				for(int i=0; i<NB_STREETS_MAX; i++){
+					street_state[i].nb_cars = temp[i].nb_cars;
+					street_state[i].out = temp[i].out;
+				}
 			}
 
+			// calculate info car
+			#pragma omp parallel for reduction(+:score)
+			for (int c = 0; c < p->V; c++){
+					score += simulation_update_car(p, c, T);
+				}
 
-			#ifdef DEBUG_SCORE
-						printf("- 2 lights:\n");
-				simulation_print_state(p, T);
-			#endif
+				simulation_dequeue(p);
 
-
-			if( rang > 0  &&  T == rang*units_per_process + bonus_prev){
-				MPI_Status status1, status2;
-				//fprintf(stderr,"process %d receiving 1 from %d AND T = %d\n",rang,rang-1,T);
-				MPI_Recv(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang - 1, 0, MPI_COMM_WORLD, &status1);
-				//fprintf(stderr,"process %d receiving 2 from %d AND T = %d\n",rang,rang-1,T);
-				MPI_Recv(&car_state, 5*NB_CARS_MAX, MPI_INT, rang - 1, 0, MPI_COMM_WORLD, &status2);
+			// send info car & lights
+			if( total_processes > 1 && T != total_units-1){
+				MPI_Ssend(&street_state, 4*NB_STREETS_MAX, MPI_INT, (rang + 1)%total_processes, 0, MPI_COMM_WORLD);
+				MPI_Ssend(&car_state, 5*NB_CARS_MAX, MPI_INT, (rang + 1)%total_processes, 0, MPI_COMM_WORLD);
 			}
 
-				#pragma omp parallel for reduction(+:score)
-				for (int c = 0; c < p->V; c++){
-						score += simulation_update_car(p, c, T);
-				//		fprintf(stderr,"process:%d temp score:%d AND T = %d\n",rang,score,T);
-					}
-
-						// Update car state
-
-			#ifdef DEBUG_SCORE
-						printf("- 3 cars (score now = %d):\n", score);
-				simulation_print_state(p, T);
-			#endif
-
-			simulation_dequeue(p);
-
-			if(  rang < total_processes-1  &&  T == (rang+1)*units_per_process + bonus_prev + bonus - 1 ){
-				//fprintf(stderr,"process %d sending 1 AND T = %d\n",rang,T);
-				MPI_Ssend(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang + 1, 0, MPI_COMM_WORLD);
-				//fprintf(stderr,"process %d sending 2 AND T = %d\n",rang,T);
-				MPI_Ssend(&car_state, 5*NB_CARS_MAX, MPI_INT, rang + 1, 0, MPI_COMM_WORLD);
-				//quitter la boucle
-				T = total_units;
-			}
-
-			#ifdef DEBUG_SCORE
-						printf("- 4 queues:\n");
-				simulation_print_state(p, T);
-			#endif
 		}
-	//	fprintf(stderr, "process %d reacher barrier\n",rang);
-	//	fprintf(stderr,"process:%d final score:%d \n",rang,score);
-		MPI_Barrier(MPI_COMM_WORLD);
+
 		MPI_Allreduce(&score, &score, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-		MPI_Finalize();
-	//	fprintf(stderr,"process:%d reduced score:%d \n",rang,score);
 		return score;
 }
 

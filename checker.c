@@ -3,7 +3,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
-//#include <mpi.h>
+#include <mpi.h>
 #include <omp.h>
 
 #include "check.h"
@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
 {
 
 
-  int score;
+  int score, rang;
 	struct timeval tv_begin, tv_end;
 
   if (argc != 3) {
@@ -37,15 +37,16 @@ int main(int argc, char* argv[])
 	CHECK(solution_check(&s, &p) == 0);
   score = solution_score(&s, &p);
 
-	gettimeofday( &tv_end, NULL);
+	MPI_Comm_rank( MPI_COMM_WORLD, &rang );
 
-
-  	fprintf(stderr, "Score %d\n", score);
+	if(rang == 0){
+		gettimeofday( &tv_end, NULL);
+		fprintf(stderr, "Score %d\n", score);
 		fprintf(stderr, "Temps entre solution_check et solution_score: %lfs\n", DIFFTEMPS(tv_begin, tv_end));
-  	// Write the score file
-  	util_write_score(argv[2], score);
+		// Write the score file
+		util_write_score(argv[2], score);
+	}
 
-
-//	MPI_Finalize();
+	MPI_Finalize();
   return(0);
 }
