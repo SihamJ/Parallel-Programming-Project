@@ -25,15 +25,16 @@ int solution_check(solution_t* const s, problem_t* const p) {
     const int nb_inter_sol = s->A;
 
 
+		// TO DO #pragma omp parallel for reduction(+:errors)
     for(int i=0; i<nb_inter_sol; i++)
     {
+			int c = i;
         // vérifie la solution pour l'intersection num i : s->schedule[i]
         if(s->schedule[i].nb < 1)
         {
             fprintf(stderr, "intersection has no light (%d)\n", i);
         }
 
-        //#pragma omp parallel for reduction(+:errors)
         for(int feu=0; feu<s->schedule[i].nb; feu++)
         {
             // s->schedule[i].t[feu] .rue et .duree sont valides
@@ -42,23 +43,21 @@ int solution_check(solution_t* const s, problem_t* const p) {
             if(rue >= nb_streets)
             {
                 fprintf(stderr, "invalid street number (%d -> \"%s\")\n", rue, name);
-//#pragma omp atomic
                 errors++;
-            }
+					 	}
             int rid;
 
-            // #p on ne peut pas paralléliser cette boucle à cause du break. on a besoin d'une condition d'arrêt à moins de modifier le code
             // vérifie que cette rue (rue) arrive bien à cette intersection (i)
             for(rid=0; rid<nb_streets; rid++)
             {
+
                 if(p->r[rid].street_id == rue)
-                    break;
-            }
+										break;
+  					}
             // p->r[rid] contient la rue, vérifie que la rue arrive bien à cette intersection
             if(p->r[rid].end != i)
             {
                 fprintf(stderr, "invalid street number (%d -> \"%s\"): not arriving to the intersection %d\n", rue, name, i);
-//#pragma omp atomic
                 errors++;
             }
 
@@ -118,7 +117,7 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
     int tick = 0;
     int no_green_light = 1;
 
-   //TO-DO:  #pragma omp parallel for reduction(+:cycle)
+   #pragma omp parallel for reduction(+:cycle)
     // Find the light cycle total time
     for (int l = 0; l < s->schedule[i].nb; l++) {
         cycle += s->schedule[i].t[l].duree;
@@ -129,11 +128,14 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
 
     //printf("Inter %d, cycle %d, tick %d, T %d\n", i, cycle, tick, T);
 
-    // #p problème de dépendence sur tick, modifier le code pour l'initialiser à nouveau dans chaque tour ?
     // Set the light state
+		// TO DO : diminue les performances, pourquoi ?
+	//	#pragma omp parallel for ordered shared(tick)
     for (int l = 0; l < s->schedule[i].nb; l++) {
         // Remove duration, if we get below zero, this light is green and others are red
+			//	#pragma omp ordered
         tick -= s->schedule[i].t[l].duree;
+
         //printf("light %d, tick %d, duree %d\n", l, tick,  s->schedule[i].t[l].duree);
         if (tick < 0) {
             street_state[s->schedule[i].t[l].rue].green = 1;
@@ -143,9 +145,11 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
             for (int next = l + 1; next < s->schedule[i].nb; next++) {
                 street_state[s->schedule[i].t[next].rue].green = 0;
             }
-            break;
+						l = s->schedule[i].nb;
+            //break;
         }
-        street_state[s->schedule[i].t[l].rue].green = 0;
+				if(l!=s->schedule[i].nb)
+        	street_state[s->schedule[i].t[l].rue].green = 0;
     }
 
     if (no_green_light) {
@@ -288,7 +292,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 		if(rang != 0)
 			for (int j = 0; j < remaining_units && j < rang; j++)
 				bonus_prev++;
-MPI_Barrier(MPI_COMM_WORLD);
+
 	// For each time step
 	for (int T = rang*units_per_process + bonus_prev; T < total_units; T++) {
 
@@ -328,7 +332,6 @@ MPI_Barrier(MPI_COMM_WORLD);
 				MPI_Recv(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang - 1, 0, MPI_COMM_WORLD, &status1);
 				//fprintf(stderr,"process %d receiving 2 from %d AND T = %d\n",rang,rang-1,T);
 				MPI_Recv(&car_state, 5*NB_CARS_MAX, MPI_INT, rang - 1, 0, MPI_COMM_WORLD, &status2);
-
 			}
 
 				#pragma omp parallel for reduction(+:score)
@@ -346,7 +349,7 @@ MPI_Barrier(MPI_COMM_WORLD);
 
 			simulation_dequeue(p);
 
-			if(  rang < total_processes-1  &&  T == (rang+1)*units_per_process - 1 + bonus + bonus_prev ){
+			if(  rang < total_processes-1  &&  T == (rang+1)*units_per_process + bonus_prev + bonus - 1 ){
 				//fprintf(stderr,"process %d sending 1 AND T = %d\n",rang,T);
 				MPI_Ssend(&street_state, 4*NB_STREETS_MAX, MPI_INT, rang + 1, 0, MPI_COMM_WORLD);
 				//fprintf(stderr,"process %d sending 2 AND T = %d\n",rang,T);

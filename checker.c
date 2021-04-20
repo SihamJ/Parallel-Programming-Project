@@ -31,29 +31,20 @@ int main(int argc, char* argv[])
 
 	CHECK(problem_read(argv[1], &p) == 0);
 	CHECK(solution_read(argv[2], &s, &p) == 0);
-	CHECK(solution_check(&s, &p) == 0);
+
 	gettimeofday( &tv_begin, NULL);
 
-	/*if( MPI_Init(&argc, &argv))
-	{
-		fprintf(stderr, "Erreur MPI_Init\n");
-		return(1);
-	}
-	MPI_Comm_rank( MPI_COMM_WORLD, &rang );
-	MPI_Comm_size( MPI_COMM_WORLD, &size );*/
+	CHECK(solution_check(&s, &p) == 0);
   score = solution_score(&s, &p);
-	// fprintf(stderr, "rang: %d, score: %d\n",rang,score );
 
-
-//	MPI_Barrier(MPI_COMM_WORLD);
 	gettimeofday( &tv_end, NULL);
 
 
   	fprintf(stderr, "Score %d\n", score);
-		fprintf(stderr, "Temps d'éxecution: %lfs\n", DIFFTEMPS(tv_begin, tv_end));
+		fprintf(stderr, "Temps entre solution_check et solution_score: %lfs\n", DIFFTEMPS(tv_begin, tv_end));
   	// Write the score file
   	util_write_score(argv[2], score);
-	
+
 
 //	MPI_Finalize();
   return(0);
