@@ -28,9 +28,8 @@ int solution_check(solution_t* const s, problem_t* const p) {
 		#pragma omp parallel for reduction(+:errors)
     for(int i=0; i<nb_inter_sol; i++)
     {
-			int c = i;
         // vérifie la solution pour l'intersection num i : s->schedule[i]
-        if(s->schedule[i].nb < 1)
+       if(s->schedule[i].nb < 1)
         {
             fprintf(stderr, "intersection has no light (%d)\n", i);
         }
@@ -42,11 +41,10 @@ int solution_check(solution_t* const s, problem_t* const p) {
             const char* const name = street_table_find_name(p->table, rue);
             if(rue >= nb_streets)
             {
-                fprintf(stderr, "invalid street number (%d -> \"%s\")\n", rue, name);
+                //fprintf(stderr, "invalid street number (%d -> \"%s\")\n", rue, name);
                 errors++;
 					 	}
             int rid;
-
             // vérifie que cette rue (rue) arrive bien à cette intersection (i)
             for(rid=0; rid<nb_streets; rid++)
             {
@@ -57,19 +55,16 @@ int solution_check(solution_t* const s, problem_t* const p) {
             // p->r[rid] contient la rue, vérifie que la rue arrive bien à cette intersection
             if(p->r[rid].end != i)
             {
-                fprintf(stderr, "invalid street number (%d -> \"%s\"): not arriving to the intersection %d\n", rue, name, i);
+              //  fprintf(stderr, "invalid street number (%d -> \"%s\"): not arriving to the intersection %d\n", rue, name, i);
                 errors++;
             }
-
             // durée > 0
-            if(s->schedule[i].t[feu].duree <= 0)
+           	if(s->schedule[i].t[feu].duree <= 0)
             {
                 fprintf(stderr, "invalid schedule length (intersection %d light %d -> %d)\n", i, feu, s->schedule[i].t[feu].duree);
             }
         }
-
     }
-
     /* OK */
     return errors;
 }
@@ -130,18 +125,16 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
 
     // Set the light state
 		// TO DO : diminue les performances, pourquoi ?
-	//	#pragma omp parallel for ordered shared(tick)
+		//#pragma omp parallel for ordered shared(tick)
     for (int l = 0; l < s->schedule[i].nb; l++) {
         // Remove duration, if we get below zero, this light is green and others are red
-			//	#pragma omp ordered
+				//#pragma omp ordered
         tick -= s->schedule[i].t[l].duree;
 
         //printf("light %d, tick %d, duree %d\n", l, tick,  s->schedule[i].t[l].duree);
         if (tick < 0) {
             street_state[s->schedule[i].t[l].rue].green = 1;
-            // #p si paralléliser alors atomic sur no_green_light
             no_green_light = 0;
-            // #p pas la peine
             for (int next = l + 1; next < s->schedule[i].nb; next++) {
                 street_state[s->schedule[i].t[next].rue].green = 0;
             }
