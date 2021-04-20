@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 	if(rang == 0){
 		gettimeofday( &tv_end, NULL);
 		fprintf(stderr, "Score %d\n", score);
-		fprintf(stderr, "Temps entre solution_check et solution_score: %lfs\n", DIFFTEMPS(tv_begin, tv_end));
+		fprintf(stderr, "Temps: %lfs\n", DIFFTEMPS(tv_begin, tv_end));
 		// Write the score file
 		util_write_score(argv[2], score);
 	}
