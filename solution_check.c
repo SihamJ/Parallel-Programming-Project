@@ -25,7 +25,7 @@ int solution_check(solution_t* const s, problem_t* const p) {
     const int nb_inter_sol = s->A;
 
 
-		// TO DO #pragma omp parallel for reduction(+:errors)
+		#pragma omp parallel for reduction(+:errors)
     for(int i=0; i<nb_inter_sol; i++)
     {
 			int c = i;
@@ -278,7 +278,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 		int remaining_units = p->D % size;
 		int total_processes = size;
 
-		// Si nombre de processus supérieurs au nombre d'unités de temps
+		// Si nombre de processus supérieur au nombre d'unités de temps
 		if(units_per_process == 0){
 			units_per_process++;
 			remaining_units = 0;
@@ -288,11 +288,6 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 		// variables utiles dans le cas où le nombre de processus ne divise pas le nombre d'unités de temps, elles servent à partager les unités -->
 		// --> restantes équitablement entre les processus.
 		int bonus = rang < remaining_units;
-		int bonus_prev = 0;
-
-		if(rang != 0)
-			for (int j = 0; j < remaining_units && j < rang; j++)
-				bonus_prev++;
 
 		for(int T = rang; T < rang + total_processes*(units_per_process+bonus); T += total_processes ){
 
@@ -300,7 +295,7 @@ int simulation_run(const solution_t* const s, const problem_t* const p) {
 			for (int i = 0; i < s->A; i++)
 					simulation_update_intersection_lights(s, i, T);
 
-			// recv prev info car & lights, & update lights
+			// recv prev info car & lights, & update num of cars
 			street_state_t temp[NB_STREETS_MAX];
 
 			if( total_processes > 1 && T != 0){
