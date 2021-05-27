@@ -112,7 +112,7 @@ void simulation_update_intersection_lights(const solution_t* const s, int i, int
     int tick = 0;
     int no_green_light = 1;
 
-   #pragma omp parallel for reduction(+:cycle)
+   //#pragma omp parallel for reduction(+:cycle)
     // Find the light cycle total time
     for (int l = 0; l < s->schedule[i].nb; l++) {
         cycle += s->schedule[i].t[l].duree;
