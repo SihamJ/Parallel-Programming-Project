@@ -8,6 +8,7 @@
 
 static problem_t  p;
 static solution_t s;
+#define DIFFTEMPS(a,b) (((b).tv_sec - (a).tv_sec) + ((b).tv_usec - (a).tv_usec)/1000000.)
 
 int main(int argc, char* argv[])
 {
