@@ -19,10 +19,10 @@ static solution_t s;
 int main(int argc, char* argv[])
 {
 
-	gettimeofday( &tv_begin, NULL);
 
   int score, rang;
 	struct timeval tv_begin, tv_end;
+	gettimeofday( &tv_begin, NULL);
 
   if (argc != 3) {
     fprintf(stderr, "usage: %s problem solution\n", argv[0]);
