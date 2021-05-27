@@ -19,6 +19,7 @@ static solution_t s;
 int main(int argc, char* argv[])
 {
 
+	gettimeofday( &tv_begin, NULL);
 
   int score, rang;
 	struct timeval tv_begin, tv_end;
@@ -32,7 +33,6 @@ int main(int argc, char* argv[])
 	CHECK(problem_read(argv[1], &p) == 0);
 	CHECK(solution_read(argv[2], &s, &p) == 0);
 
-	gettimeofday( &tv_begin, NULL);
 
 	CHECK(solution_check(&s, &p) == 0);
   score = solution_score(&s, &p);
